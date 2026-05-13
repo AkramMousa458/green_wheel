@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_translate/flutter_translate.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:green_wheel/core/utils/app_colors.dart';
+import 'package:green_wheel/core/utils/assets.dart';
 import 'package:green_wheel/core/utils/theme_utils.dart';
 import 'package:green_wheel/core/widgets/language_toggle_button.dart';
 import 'package:green_wheel/core/widgets/theme_toggle_button.dart';
@@ -21,15 +22,7 @@ class SettingsScreen extends StatelessWidget {
             : AppColors.white,
         elevation: 0,
         toolbarHeight: 70,
-        title: Text(
-          translate('green_wheel').toUpperCase(),
-          style: const TextStyle(
-            color: AppColors.primary,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.5,
-          ),
-        ),
+        title: Image.asset(Assets.logoHorizontal, height: 40.h),
         centerTitle: true,
         leading: ThemeToggleButton(),
         actions: const [LanguageToggleButton(), SizedBox(width: 16)],

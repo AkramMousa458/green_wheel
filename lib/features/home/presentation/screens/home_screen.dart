@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_translate/flutter_translate.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:green_wheel/core/utils/app_colors.dart';
+import 'package:green_wheel/core/widgets/custom_app_bar.dart';
 import 'package:green_wheel/features/home/presentation/widgets/home_screen_body.dart';
 import 'package:green_wheel/core/utils/theme_utils.dart';
 
@@ -13,28 +14,9 @@ class HomeScreen extends StatelessWidget {
     final isDark = ThemeUtils.isDark(context);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: isDark
-            ? Theme.of(context).scaffoldBackgroundColor
-            : AppColors.white,
-        elevation: 0,
-        toolbarHeight: 70,
-        title: Text(
-          translate('green_wheel').toUpperCase(),
-          style: TextStyle(
-            color: AppColors.primary,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.5,
-          ),
-        ),
-        centerTitle: true,
-        leading: Icon(Icons.bolt_rounded, color: AppColors.primary),
-        actions: [
-      
-          Icon(Icons.bluetooth_rounded, color: AppColors.primary),
-          const SizedBox(width: 16),
-        ],
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(65.h),
+        child: CustomAppBar(isDark: isDark),
       ),
       body: SafeArea(
         child: RefreshIndicator(
@@ -47,3 +29,4 @@ class HomeScreen extends StatelessWidget {
     );
   }
 }
+

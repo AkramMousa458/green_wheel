@@ -41,7 +41,7 @@ class HomeScreenBody extends StatelessWidget {
             ],
           ),
           SizedBox(height: 16.h),
-          TemperatureCard(temperature: '32°C', status: translate('optimal')),
+        TemperatureCard(temperature: '32°C', status: translate('optimal')),
           SizedBox(height: 24.h),
         ],
       ),
