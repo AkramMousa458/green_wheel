@@ -18,7 +18,26 @@
   "analytics": "التحليلات",
   "dashboard": "لوحة التحكم",
   "alerts": "تنبيهات",
-  "charts": "الرسوم البيانية",
-  "settings": "الإعدادات"
+  "settings": "الإعدادات",
+  "system_alerts": "تنبيهات النظام",
+  "system_alerts_desc": "مراقبة وتشخيص في الوقت الفعلي.",
+  "attention_required": "مطلوب الانتباه",
+  "attention_required_desc": "تم اكتشاف تنبيهين نشطين يؤثران على أداء المركبة. يوصى بالمراجعة الفورية.",
+  "active_priority": "الأولوية النشطة",
+  "battery_high_temp": "ارتفاع حرارة حزمة البطارية",
+  "critical": "حرج",
+  "battery_high_temp_desc": "درجة حرارة الوحدة 4 تتجاوز حدود التشغيل الآمنة (48 درجة مئوية). نظام التبريد نشط ولكنه يواجه صعوبة.",
+  "initiate_diagnostics": "بدء التشخيص",
+  "low_range_warning": "تحذير انخفاض النطاق",
+  "warning": "تحذير",
+  "low_range_warning_desc": "انخفض النطاق المقدر إلى أقل من 15%. نوصي بالتوجيه إلى أقرب محطة شحن على الفور.",
+  "find_charger": "البحث عن شاحن",
+  "recent_events": "الأحداث الأخيرة",
+  "connection_dropped": "انقطاع الاتصال",
+  "connection_dropped_desc": "فقدان الاتصال بخادم الاتصالات عن بعد لفترة وجيزة.",
+  "firmware_update": "يتوفر تحديث للبرامج الثابتة",
+  "firmware_update_desc": "الإصدار 2.4.1 جاهز للتثبيت.",
+  "time_yesterday": "أمس",
+  "time_10_42": "10:42 صباحاً"
 }
 
