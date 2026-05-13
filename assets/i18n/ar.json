@@ -38,6 +38,16 @@
   "firmware_update": "يتوفر تحديث للبرامج الثابتة",
   "firmware_update_desc": "الإصدار 2.4.1 جاهز للتثبيت.",
   "time_yesterday": "أمس",
-  "time_10_42": "10:42 صباحاً"
+  "time_10_42": "10:42 صباحاً",
+  "scanning_area": "منطقة المسح",
+  "scanning_desc": "جاري البحث عن أنظمة إدارة بطاريات Green Wheel القريبة...",
+  "available_devices": "الأجهزة المتاحة",
+  "greenwheel_bMS": "GreenWheel_BMS",
+  "unknown_ble_device": "Unknown_BLE_Device",
+  "smarttv_livingroom": "SmartTV_LivingRoom",
+  "strong_signal": "إشارة قوية",
+  "medium_signal": "إشارة متوسطة",
+  "weak_signal": "إشارة ضعيفة",
+  "connect": "اتصال"
 }
 

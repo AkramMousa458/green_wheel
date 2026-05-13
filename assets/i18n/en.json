@@ -38,5 +38,15 @@
   "firmware_update": "Firmware Update Available",
   "firmware_update_desc": "Version 2.4.1 is ready to install.",
   "time_yesterday": "Yesterday",
-  "time_10_42": "10:42 AM"
+  "time_10_42": "10:42 AM",
+  "scanning_area": "Scanning Area",
+  "scanning_desc": "Searching for nearby Green Wheel Battery Management Systems...",
+  "available_devices": "Available Devices",
+  "greenwheel_bMS": "GreenWheel_BMS",
+  "unknown_ble_device": "Unknown_BLE_Device",
+  "smarttv_livingroom": "SmartTV_LivingRoom",
+  "strong_signal": "Strong Signal",
+  "medium_signal": "Medium Signal",
+  "weak_signal": "Weak Signal",
+  "connect": "Connect"
 }

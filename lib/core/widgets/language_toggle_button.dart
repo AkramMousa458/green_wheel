@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:green_wheel/core/language/language_cubit.dart';
+import 'package:green_wheel/core/utils/app_colors.dart';
 
 /// A reusable language toggle button widget
 class LanguageToggleButton extends StatelessWidget {
@@ -23,11 +24,7 @@ class LanguageToggleButton extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.language,
-                  size: 20.w,
-                  color: Theme.of(context).appBarTheme.foregroundColor,
-                ),
+                Icon(Icons.language, size: 20.w, color: AppColors.primary),
                 SizedBox(width: 4.w),
                 Text(
                   isArabic ? '🇪🇬' : '🇺🇸',

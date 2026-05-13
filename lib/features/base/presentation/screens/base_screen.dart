@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:green_wheel/features/base/presentation/widgets/custom_bottom_nav_bar.dart';
 import 'package:green_wheel/features/home/presentation/screens/home_screen.dart';
 import 'package:green_wheel/features/alerts/presentation/screens/alerts_screen.dart';
+import 'package:green_wheel/features/settings/presentation/screens/settings_screen.dart';
 
 class BaseScreen extends StatefulWidget {
   const BaseScreen({super.key});
@@ -25,7 +26,7 @@ class _BaseScreenState extends State<BaseScreen> {
     const HomeScreen(),
     const Placeholder(),
     const AlertsScreen(),
-    const Placeholder(),
+    const SettingsScreen(),
   ];
 
   @override
