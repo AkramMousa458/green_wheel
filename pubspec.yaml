@@ -1,0 +1,72 @@
+name: green_wheel
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cached_network_image: ^3.4.1
+  cupertino_icons: ^1.0.8
+  dartz: ^0.10.1
+  dio: ^5.8.0+1
+  equatable: ^2.0.7
+  flutter_animate: ^4.5.2
+  flutter_bloc: ^9.1.1
+  flutter_localizations:
+    sdk: flutter
+  flutter_screenutil: ^5.9.3
+  flutter_translate: ^3.1.0
+  font_awesome_flutter: ^10.12.0
+  get_it: ^8.0.3
+  go_router: ^16.0.0
+  image_picker: ^1.2.1
+  logger: ^2.6.2
+  shared_preferences: ^2.5.3
+  shimmer: ^3.0.0
+  top_snackbar_flutter: ^3.3.0
+  url_launcher: ^6.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+
+  # Android Adaptive Icon
+  adaptive_icon_background: "#FFFFFFFF"
+  adaptive_icon_foreground: "assets/icon/app_icon_fg.png"
+
+  # Fallback icon (used for iOS + old Android)
+  image_path: "assets/icon/app_icon.png"
+
+  min_sdk_android: 21
+  remove_alpha_ios: true
+
+flutter:
+  uses-material-design: true
+
+
+  assets:
+    - assets/i18n/
+    - assets/images/
+
+  # Alexandria Font Family
+  fonts:
+    - family: Alexandria
+      fonts:
+        - asset: assets/fonts/Alexandria-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Alexandria-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Alexandria-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Alexandria-Bold.ttf
+          weight: 700

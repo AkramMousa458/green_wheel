@@ -1,0 +1,24 @@
+{
+  "no_internet": "لا يوجد إتصال بالإنترنت",
+  "retry": "إعادة المحاولة",
+  "welcome": "مرحباً",
+  "language": "اللغة",
+  "login": "تسجيل الدخول",
+  "home": "الرئيسية",
+  "contact_address": "العنوان",
+  "loading": "جارى التحميل...",
+  "error_try_again": "خطأ, حاول مرة أخرى",
+  "status_safe": "الحالة: آمن",
+  "battery_soc": "مستوى البطارية",
+  "voltage": "الجهد",
+  "current": "التيار",
+  "temperature": "درجة الحرارة",
+  "optimal": "مثالي",
+  "green_wheel": "جرين ويل",
+  "analytics": "التحليلات",
+  "dashboard": "لوحة التحكم",
+  "alerts": "تنبيهات",
+  "charts": "الرسوم البيانية",
+  "settings": "الإعدادات"
+}
+
