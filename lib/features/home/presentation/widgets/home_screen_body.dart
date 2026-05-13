@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:green_wheel/core/widgets/language_toggle_button.dart';
-import 'package:green_wheel/core/widgets/theme_toggle_button.dart';
 import 'package:green_wheel/features/home/presentation/widgets/battery_indicator.dart';
 import 'package:green_wheel/features/home/presentation/widgets/metric_card.dart';
 import 'package:green_wheel/features/home/presentation/widgets/status_card.dart';
@@ -19,7 +17,6 @@ class HomeScreenBody extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 24.h),
       child: Column(
         children: [
-          // Row(children: [ThemeToggleButton(), LanguageToggleButton()]),
           const StatusCard(),
           SizedBox(height: 40.h),
           const BatteryIndicator(percentage: 85),
