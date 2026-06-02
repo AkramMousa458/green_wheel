@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:green_wheel/features/base/presentation/widgets/custom_bottom_nav_bar.dart';
+import 'package:green_wheel/features/analytics/presentation/screens/analytics_screen.dart';
 import 'package:green_wheel/features/home/presentation/screens/home_screen.dart';
 import 'package:green_wheel/features/alerts/presentation/screens/alerts_screen.dart';
 import 'package:green_wheel/features/settings/presentation/screens/settings_screen.dart';
@@ -24,7 +25,7 @@ class _BaseScreenState extends State<BaseScreen> {
 
   final List<Widget> _screens = [
     const HomeScreen(),
-    const Placeholder(),
+    const AnalyticsScreen(),
     const AlertsScreen(),
     const SettingsScreen(),
   ];

@@ -48,5 +48,15 @@
   "strong_signal": "Strong Signal",
   "medium_signal": "Medium Signal",
   "weak_signal": "Weak Signal",
-  "connect": "Connect"
+  "connect": "Connect",
+  "live_telemetry": "Live Telemetry",
+  "system_online": "System Online",
+  "recording_data": "Recording Data",
+  "time_range_1h": "1H",
+  "time_range_6h": "6H",
+  "time_range_24h": "24H",
+  "time_range_7d": "7D",
+  "pack_voltage": "Pack Voltage",
+  "discharge_current": "Discharge Current",
+  "cell_temperature": "Cell Temperature"
 }

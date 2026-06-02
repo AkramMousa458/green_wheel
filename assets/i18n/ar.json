@@ -48,6 +48,16 @@
   "strong_signal": "إشارة قوية",
   "medium_signal": "إشارة متوسطة",
   "weak_signal": "إشارة ضعيفة",
-  "connect": "اتصال"
+  "connect": "اتصال",
+  "live_telemetry": "البيانات الحية",
+  "system_online": "النظام متصل",
+  "recording_data": "تسجيل البيانات",
+  "time_range_1h": "1س",
+  "time_range_6h": "6س",
+  "time_range_24h": "24س",
+  "time_range_7d": "7ي",
+  "pack_voltage": "جهد الحزمة",
+  "discharge_current": "تيار التفريغ",
+  "cell_temperature": "حرارة الخلية"
 }
 
