@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
+import 'package:green_wheel/core/di/injection.dart';
 import 'package:green_wheel/core/utils/app_string.dart';
 import 'package:green_wheel/core/utils/local_storage.dart';
 import 'package:green_wheel/core/services/api_service.dart';
@@ -51,4 +52,6 @@ Future<void> setupLocator({Logger? logger}) async {
   locator.registerSingleton<LocalStorage>(
     await LocalStorage.init(logger: locator<Logger>()),
   );
+
+  await configureDependencies();
 }

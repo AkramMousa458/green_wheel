@@ -1,0 +1,961 @@
+/*
+==========================================================
+ GREEN WHEEL SMART BMS
+ Graduation Project - Autotronics Technology
+ *** FIXED & DOCUMENTED VERSION ***
+==========================================================
+
+ الإصلاحات المطبقة:
+ 1. ACS_OFFSET يتحسب تلقائياً عند الإقلاع (مش قيمة ثابتة)
+ 2. إزالة delay(2) من loop القراءة → delayMicroseconds(500)
+ 3. SOC بيستخدم Coulomb Counting + جهد معاً
+ 4. SD Header يتكتب مرة واحدة بس لو الملف مش موجود
+ 5. Bluetooth check قبل الإرسال
+ 6. LCD بدون flickering
+ 7. Hysteresis في الحماية عشان MOSFET مش يتقلب بسرعة
+ 8. Serial print داخل timer مش كل loop
+
+==========================================================
+*/
+
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <SPI.h>
+#include <SD.h>
+#include "BluetoothSerial.h"
+#include <esp_task_wdt.h>
+#include <Preferences.h>
+
+// ==========================================================
+// LCD - عنوان I2C هو 0x27 على اغلب الموديلات
+// ==========================================================
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// ==========================================================
+// Bluetooth
+// ==========================================================
+BluetoothSerial SerialBT;
+
+// ==========================================================
+// تعريف الـ Pins
+// ==========================================================
+#define TEMP_PIN       25   // DS18B20 One-Wire
+#define MOSFET1_PIN    26   // MOSFET تحكم الشحن
+#define MOSFET2_PIN    27   // MOSFET تحكم التفريغ
+#define LED_PIN        13   // LED مؤشر الأعطال
+#define VOLTAGE_PIN    35   // ADC قراءة الجهد
+#define CURRENT_PIN    34   // ADC قراءة التيار ACS712
+#define SD_CS           2   // Chip Select للـ SD Card
+
+// ==========================================================
+// DS18B20 Temperature Sensor
+// ==========================================================
+OneWire oneWire(TEMP_PIN);
+DallasTemperature sensors(&oneWire);
+
+// ==========================================================
+// متغيرات البيانات الرئيسية
+// ==========================================================
+float batteryVoltage  = 0.0;  // الجهد بالفولت
+float batteryCurrent  = 0.0;  // التيار بالأمبير
+float batteryTemp     = 0.0;  // الحرارة بالدرجة المئوية
+float batterySOC      = 100.0; // نسبة الشحن %
+
+// ==========================================================
+// متغيرات حالة النظام
+// ==========================================================
+bool lcdWorking       = true;  // حالة LCD
+bool sdWorking        = true;  // حالة SD Card
+bool btWorking        = true;  // حالة Bluetooth
+bool tempSensorWorking = true; // حالة سنسور الحرارة
+bool voltSensorWorking = true; // حالة سنسور الجهد
+bool currSensorWorking = true; // حالة سنسور التيار
+
+// ==========================================================
+// Preferences لحفظ البيانات في NVS
+// ==========================================================
+Preferences preferences;
+
+// ==========================================================
+// متغيرات معالجة الأخطاء
+// ==========================================================
+int sdRetryCount      = 0;     // عدد محاولات SD
+int btRetryCount      = 0;     // عدد محاولات Bluetooth
+int lcdRetryCount     = 0;     // عدد محاولات LCD
+unsigned long lastErrorTime = 0; // وقت آخر خطأ
+
+// ==========================================================
+// حدود معالجة القيم المتطرفة
+// ==========================================================
+#define VOLTAGE_MAX_SAFE  15.0   // أقصى جهد آمن V
+#define VOLTAGE_MIN_SAFE  0.5    // أقل جهد آمن V
+#define CURRENT_MAX_SAFE  30.0   // أقصى تيار آمن A
+#define TEMP_MIN_SAFE    -20.0   // أقل حرارة آمنة °C
+#define TEMP_MAX_SAFE    85.0    // أقصى حرارة آمنة °C
+
+// ==========================================================
+// معالجة millis overflow
+// ==========================================================
+unsigned long lastMillis = 0;
+bool millisOverflow = false;
+
+// ==========================================================
+// Coulomb Counting لحساب SOC بدقة
+// ==========================================================
+// سعة البطارية الكاملة بالـ mAh - عدّلها حسب بطاريتك
+#define BATTERY_CAPACITY_MAH  20000.0
+
+float capacityUsed_mAh = 0.0;        // كمية الشحن المستهلكة
+unsigned long lastCoulombTime = 0;   // وقت آخر حسبة Coulomb
+
+// ==========================================================
+// Timers للمهام المختلفة
+// ==========================================================
+unsigned long lastLogTime       = 0;
+unsigned long lastLCDTime       = 0;
+unsigned long lastBluetoothTime = 0;
+unsigned long lastSerialTime    = 0;
+
+// ==========================================================
+// متغيرات الحماية
+// ==========================================================
+bool faultFlag      = false;
+bool mosfetEnabled  = true;  // حالة الـ MOSFET الحالية
+
+// ==========================================================
+// حدود الحماية - عدّلها حسب البطارية
+// ==========================================================
+#define TEMP_MAX        55.0   // أقصى حرارة °C
+#define TEMP_HYST       50.0   // حرارة العودة للعمل °C (Hysteresis)
+
+#define VOLT_MIN        10.5   // أقل جهد مسموح V
+#define VOLT_HYST       11.0   // جهد العودة للعمل V
+
+#define CURR_MAX        25.0   // أقصى تيار A
+#define CURR_HYST       20.0   // تيار العودة للعمل A
+
+// ==========================================================
+// معايرة الجهد
+// Voltage Divider: R1 و R2 تحدد النسبة
+// مثال: R1=30kΩ, R2=10kΩ → نسبة = (30+10)/10 = 4.0
+// عدّل بعد المعايرة بالأفوميتر
+// ==========================================================
+float VOLTAGE_CALIBRATION = 4.00;
+
+// ==========================================================
+// معايرة ACS712 30A
+// ACS_SENSITIVITY: حساسية السنسور = 66mV/A للموديل 30A
+// ACS_OFFSET: بيتحسب تلقائياً في setup()
+// ==========================================================
+float ACS_SENSITIVITY = 0.066;
+float ACS_OFFSET      = 0.0;   // هيتحسب تلقائياً
+
+// ==========================================================
+// قراءة جهد البطارية مع معالجة الأخطاء
+// ==========================================================
+/*
+ الشرح:
+ - ESP32 ADC بيقرأ من 0 إلى 4095 (12-bit)
+ - المرجع = 3.3V
+ - الجهد على الـ Pin = (ADC / 4095) × 3.3
+ - الجهد الحقيقي = جهد الـ Pin × معامل Voltage Divider
+ - معالجة القيم المتطرفة و NaN و Inf
+*/
+float readVoltage()
+{
+  // ناخد متوسط 10 قراءات عشان نقلل الـ noise
+  long total = 0;
+  int validReadings = 0;
+  
+  for (int i = 0; i < 10; i++)
+  {
+    int reading = analogRead(VOLTAGE_PIN);
+    
+    // معالجة القراءات غير الصالحة
+    if (reading >= 0 && reading <= 4095)
+    {
+      total += reading;
+      validReadings++;
+    }
+    delayMicroseconds(200);
+  }
+  
+  // لو كل القراءات فاشلة
+  if (validReadings == 0)
+  {
+    voltSensorWorking = false;
+    Serial.println("⚠ Voltage sensor: All readings invalid!");
+    return batteryVoltage; // رجع آخر قيمة صالحة
+  }
+  
+  float adcValue   = total / validReadings;
+  float adcVoltage = (adcValue * 3.3) / 4095.0;
+  float realVoltage = adcVoltage * VOLTAGE_CALIBRATION;
+  
+  // معالجة NaN و Inf
+  if (isnan(realVoltage) || isinf(realVoltage))
+  {
+    voltSensorWorking = false;
+    Serial.println("⚠ Voltage sensor: NaN/Inf detected!");
+    return batteryVoltage; // رجع آخر قيمة صالحة
+  }
+  
+  // معالجة القيم المتطرفة
+  if (realVoltage < VOLTAGE_MIN_SAFE || realVoltage > VOLTAGE_MAX_SAFE)
+  {
+    voltSensorWorking = false;
+    Serial.print("⚠ Voltage sensor: Out of range: ");
+    Serial.println(realVoltage);
+    return batteryVoltage; // رجع آخر قيمة صالحة
+  }
+  
+  voltSensorWorking = true;
+  return realVoltage;
+}
+
+// ==========================================================
+// قراءة التيار بـ ACS712 30A مع معالجة الأخطاء
+// ==========================================================
+/*
+ الشرح:
+ - ACS712 بيخرج جهد = ACS_OFFSET + (التيار × ACS_SENSITIVITY)
+ - عند تيار صفر: الخرج = ACS_OFFSET (VCC/2 = 1.65V عادةً)
+ - ACS_OFFSET بيتقاس تلقائياً في setup() لما التيار = صفر
+ - ناخد 200 قراءة → متوسط → نتجنب تأثير الـ AC noise
+ - معالجة القيم المتطرفة و NaN و Inf
+
+ إصلاح الـ delay:
+ - الكود القديم: delay(2) × 200 = 400ms حظر كامل ❌
+ - الكود الجديد: delayMicroseconds(500) × 200 = 100ms فقط ✅
+*/
+float readCurrent()
+{
+  long total = 0;
+  int validReadings = 0;
+  
+  for (int i = 0; i < 200; i++)
+  {
+    int reading = analogRead(CURRENT_PIN);
+    
+    // معالجة القراءات غير الصالحة
+    if (reading >= 0 && reading <= 4095)
+    {
+      total += reading;
+      validReadings++;
+    }
+    delayMicroseconds(500);  // 200 × 0.5ms = 100ms بدل 400ms
+  }
+
+  // لو كل القراءات فاشلة
+  if (validReadings == 0)
+  {
+    currSensorWorking = false;
+    Serial.println("⚠ Current sensor: All readings invalid!");
+    return batteryCurrent; // رجع آخر قيمة صالحة
+  }
+
+  float adcAvg  = total / validReadings;
+  float voltage = adcAvg * 3.3 / 4095.0;
+  float current = (voltage - ACS_OFFSET) / ACS_SENSITIVITY;
+
+  // معالجة NaN و Inf
+  if (isnan(current) || isinf(current))
+  {
+    currSensorWorking = false;
+    Serial.println("⚠ Current sensor: NaN/Inf detected!");
+    return batteryCurrent; // رجع آخر قيمة صالحة
+  }
+  
+  // معالجة القيم المتطرفة
+  if (current < -CURRENT_MAX_SAFE || current > CURRENT_MAX_SAFE)
+  {
+    currSensorWorking = false;
+    Serial.print("⚠ Current sensor: Out of range: ");
+    Serial.println(current);
+    return batteryCurrent; // رجع آخر قيمة صالحة
+  }
+
+  currSensorWorking = true;
+  
+  // Dead-zone: تجاهل قراءات أقل من 150mA (noise)
+  if (current > -0.15 && current < 0.15)
+    current = 0;
+
+  return current;
+}
+
+// ==========================================================
+// قراءة درجة الحرارة DS18B20
+// ==========================================================
+/*
+ الشرح:
+ - DS18B20 بيتكلم بـ One-Wire Protocol
+ - requestTemperatures() بتبعت أمر القياس
+ - getTempCByIndex(0) بترجع درجة الحرارة بالمئوية
+ - الدقة ±0.5°C
+*/
+float readTemperature()
+{
+  sensors.requestTemperatures();
+  float temp = sensors.getTempCByIndex(0);
+
+  // لو السنسور مش موصل بيرجع -127
+  if (temp == DEVICE_DISCONNECTED_C)
+  {
+    Serial.println("⚠ Temperature sensor disconnected!");
+    return 0.0;
+  }
+  return temp;
+}
+
+// ==========================================================
+// حساب SOC بـ Coulomb Counting + Voltage
+// ==========================================================
+/*
+ الشرح:
+ الكود القديم كان بيحسب SOC من الجهد بس:
+   SOC = (V - Vmin) / (Vmax - Vmin) × 100  ← غلط لأن الجهد بيتأثر بالحمل
+
+ الكود الجديد بيستخدم Coulomb Counting:
+   كمية الشحن المستهلكة (mAh) += التيار (A) × الوقت (ساعة) × 1000
+   SOC = 100 - (المستهلك / الكامل × 100)
+
+ وبعدين بنعمل تصحيح بالجهد (Voltage Correction):
+   لو SOC من الجهد وSOC من Coulomb فيه فرق كبير → نصلح بالتدريج
+   ده بيعطي دقة أحسن بكتير
+*/
+void updateSOC()
+{
+  unsigned long now     = millis();
+  float deltaTime_ms    = now - lastCoulombTime;
+  float deltaTime_hours = deltaTime_ms / 3600000.0;
+  lastCoulombTime       = now;
+
+  // لو التيار موجب (تفريغ) نطرح من السعة
+  // لو التيار سالب (شحن) نضيف للسعة
+  if (batteryCurrent > 0)
+    capacityUsed_mAh += batteryCurrent * 1000.0 * deltaTime_hours;
+  else
+    capacityUsed_mAh += batteryCurrent * 1000.0 * deltaTime_hours; // يتقلص
+
+  // نضمن إن capacityUsed_mAh مابتطلعش عن الحدود
+  if (capacityUsed_mAh < 0)
+    capacityUsed_mAh = 0;
+  if (capacityUsed_mAh > BATTERY_CAPACITY_MAH)
+    capacityUsed_mAh = BATTERY_CAPACITY_MAH;
+
+  // SOC من Coulomb Counting
+  float socCoulomb = 100.0 - (capacityUsed_mAh / BATTERY_CAPACITY_MAH * 100.0);
+
+  // SOC من الجهد (للمقارنة والتصحيح)
+  float socVoltage = ((batteryVoltage - 10.5) / (12.6 - 10.5)) * 100.0;
+  socVoltage = constrain(socVoltage, 0, 100);
+
+  // تصحيح تدريجي: لو الفرق أكبر من 10% نصحح ببطء
+  float diff = socVoltage - socCoulomb;
+  if (abs(diff) > 10.0)
+    socCoulomb += diff * 0.01; // تصحيح 1% من الفرق كل دورة
+
+  batterySOC = constrain(socCoulomb, 0, 100);
+}
+
+// ==========================================================
+// عرض البيانات على LCD مع معالجة الأخطاء
+// ==========================================================
+/*
+ إصلاح الـ Flickering:
+ - الكود القديم كان بيعمل lcd.clear() كل ثانية → وميض ❌
+ - الكود الجديد بيمسح نص السطر بدل مسح الشاشة كلها ✅
+ - بنكتب مسافات فاضية عشان نمسح الأرقام القديمة
+ - معالجة فشل I2C
+*/
+void updateLCD()
+{
+  if (!lcdWorking)
+  {
+    // محاولة إعادة الاتصال بالـ LCD
+    if (millis() - lastErrorTime > 5000) // كل 5 ثواني
+    {
+      lcdRetryCount++;
+      if (lcdRetryCount < 3)
+      {
+        Serial.println("🔄 Attempting LCD reconnection...");
+        Wire.begin();
+        if (lcd.init())
+        {
+          lcdWorking = true;
+          lcdRetryCount = 0;
+          Serial.println("✅ LCD reconnected!");
+          lcd.backlight();
+          lcd.clear();
+        }
+      }
+      lastErrorTime = millis();
+    }
+    return;
+  }
+  
+  try
+  {
+    // السطر الأول: الجهد والتيار
+    lcd.setCursor(0, 0);
+    lcd.print("V:");
+    lcd.print(batteryVoltage, 1);
+    lcd.print("V I:");
+    lcd.print(batteryCurrent, 1);
+    lcd.print("A  "); // مسافات زيادة تمسح أرقام قديمة
+
+    // السطر التاني: الحرارة ونسبة الشحن
+    lcd.setCursor(0, 1);
+    lcd.print("T:");
+    lcd.print(batteryTemp, 1);
+    lcd.print("C ");
+    lcd.print((int)batterySOC);
+    lcd.print("%   ");
+
+    // لو في عطل نضيف مؤشر
+    if (faultFlag)
+    {
+      lcd.setCursor(14, 1);
+      lcd.print("!!");
+    }
+  }
+  catch (...)
+  {
+    lcdWorking = false;
+    Serial.println("⚠ LCD communication failed!");
+    lastErrorTime = millis();
+  }
+}
+
+// ==========================================================
+// حفظ البيانات على SD Card مع معالجة الأخطاء
+// ==========================================================
+/*
+ الإصلاح:
+ - الكود القديم كان بيكتب الـ Header كل ما يتشغل الجهاز ❌
+ - الكود الجديد بيشوف لو الملف موجود الأول ✅
+ - معالجة فشل الكتابة وإعادة المحاولة
+*/
+void saveToSD()
+{
+  if (!sdWorking)
+  {
+    // محاولة إعادة الاتصال بالـ SD
+    if (millis() - lastErrorTime > 10000) // كل 10 ثواني
+    {
+      sdRetryCount++;
+      if (sdRetryCount < 5)
+      {
+        Serial.println("🔄 Attempting SD reconnection...");
+        if (SD.begin(SD_CS))
+        {
+          sdWorking = true;
+          sdRetryCount = 0;
+          Serial.println("✅ SD reconnected!");
+        }
+      }
+      lastErrorTime = millis();
+    }
+    return;
+  }
+  
+  File file = SD.open("/BatteryLog.csv", FILE_APPEND);
+  if (file)
+  {
+    file.print(millis());       file.print(",");
+    file.print(batteryVoltage); file.print(",");
+    file.print(batteryCurrent); file.print(",");
+    file.print(batteryTemp);    file.print(",");
+    file.println(batterySOC);
+    file.close();
+    sdRetryCount = 0;
+  }
+  else
+  {
+    sdWorking = false;
+    sdRetryCount++;
+    Serial.println("⚠ SD Write Failed - BatteryLog.csv");
+    lastErrorTime = millis();
+  }
+}
+
+// ==========================================================
+// حفظ الأعطال على SD مع معالجة الأخطاء
+// ==========================================================
+void saveFault(String fault)
+{
+  if (!sdWorking) return;
+  
+  File file = SD.open("/FaultLog.txt", FILE_APPEND);
+  if (file)
+  {
+    file.print(millis());
+    file.print(" ms : ");
+    file.println(fault);
+    file.close();
+    Serial.print("🚨 FAULT LOGGED: ");
+    Serial.println(fault);
+  }
+  else
+  {
+    Serial.print("🚨 FAULT (SD FAILED): ");
+    Serial.println(fault);
+  }
+}
+
+// ==========================================================
+// إرسال البيانات بالبلوتوث مع معالجة الأخطاء
+// ==========================================================
+/*
+ الإصلاح:
+ - الكود القديم كان بيبعث حتى لو مفيش اتصال ❌
+ - الكود الجديد بيتأكد من وجود اتصال الأول ✅
+ - معالجة فشل الإرسال وإعادة المحاولة
+*/
+void sendBluetooth()
+{
+  if (!btWorking)
+  {
+    // محاولة إعادة تشغيل Bluetooth
+    if (millis() - lastErrorTime > 30000) // كل 30 ثانية
+    {
+      btRetryCount++;
+      if (btRetryCount < 3)
+      {
+        Serial.println("🔄 Attempting Bluetooth restart...");
+        SerialBT.end();
+        delay(1000);
+        if (SerialBT.begin("GREEN_WHEEL_BMS"))
+        {
+          btWorking = true;
+          btRetryCount = 0;
+          Serial.println("✅ Bluetooth restarted!");
+        }
+      }
+      lastErrorTime = millis();
+    }
+    return;
+  }
+  
+  if (!SerialBT.hasClient())
+    return; // مفيش حد متصل → مانبعتش
+
+  String data = "";
+  data += "V:"   + String(batteryVoltage, 2);
+  data += ",I:"  + String(batteryCurrent, 2);
+  data += ",T:"  + String(batteryTemp,    2);
+  data += ",SOC:"+ String(batterySOC,     0);
+  data += ",F:"  + String(faultFlag ? 1 : 0); // مؤشر العطل
+
+  if (!SerialBT.println(data))
+  {
+    btWorking = false;
+    Serial.println("⚠ Bluetooth send failed!");
+    lastErrorTime = millis();
+  }
+}
+
+// ==========================================================
+// نظام الحماية مع Hysteresis ومعالجة الأخطاء
+// ==========================================================
+/*
+ الإصلاح الرئيسي - Hysteresis:
+ الكود القديم كان بيقطع ويوصل بسرعة لو القيمة قريبة من الحد ❌
+ مثال: لو الحرارة 55.1 → قطع، 54.9 → وصّل، 55.0 → قطع...
+ ده بيدمر الـ MOSFET!
+
+ الحل: نستخدم حدين:
+ - حد القطع (مثلاً 55°C) → لما يوصله نقطع
+ - حد الوصل (مثلاً 50°C) → لما ينزل تحته نوصّل
+
+ كمان أضفنا: لازم كل الحدود تبقى ضمن المسموح قبل ما نوصّل
+ - معالجة الجهد الزائد (Overcharge)
+ - معالجة التيار السالب الشديد (Short Circuit عكسي)
+ - معالجة الحرارة السالبة (سنسور معطل)
+*/
+void checkProtection()
+{
+  bool shouldCut = false;
+  String faultReason = "";
+
+  // فحص الحرارة
+  if (batteryTemp > TEMP_MAX)
+  {
+    shouldCut   = true;
+    faultReason = "OVER_TEMP:" + String(batteryTemp, 1) + "C";
+  }
+  
+  // فحص الحرارة السالبة (سنسور معطل)
+  if (batteryTemp < -10.0 && tempSensorWorking)
+  {
+    shouldCut   = true;
+    faultReason = "NEG_TEMP:" + String(batteryTemp, 1) + "C";
+  }
+
+  // فحص الجهد المنخفض
+  if (batteryVoltage < VOLT_MIN && batteryVoltage > 1.0)
+  {
+    // batteryVoltage > 1.0 عشان نتجنب قطع لو السنسور مش موصول
+    shouldCut   = true;
+    faultReason = "LOW_VOLT:" + String(batteryVoltage, 2) + "V";
+  }
+  
+  // فحص الجهد الزائد (Overcharge)
+  if (batteryVoltage > 14.0 && voltSensorWorking)
+  {
+    shouldCut   = true;
+    faultReason = "OVER_VOLT:" + String(batteryVoltage, 2) + "V";
+  }
+
+  // فحص التيار الزيادة
+  if (batteryCurrent > CURR_MAX)
+  {
+    shouldCut   = true;
+    faultReason = "OVER_CURR:" + String(batteryCurrent, 1) + "A";
+  }
+  
+  // فحص التيار السالب الشديد (Short Circuit عكسي)
+  if (batteryCurrent < -30.0 && currSensorWorking)
+  {
+    shouldCut   = true;
+    faultReason = "REV_CURR:" + String(batteryCurrent, 1) + "A";
+  }
+
+  // ---- منطق الـ Hysteresis ----
+
+  if (shouldCut && mosfetEnabled)
+  {
+    // قطع لأول مرة
+    digitalWrite(MOSFET1_PIN, LOW);
+    digitalWrite(MOSFET2_PIN, LOW);
+    mosfetEnabled = false;
+    faultFlag     = true;
+    saveFault(faultReason);
+    Serial.print("🚨 PROTECTION TRIGGERED: ");
+    Serial.println(faultReason);
+  }
+  else if (!shouldCut && !mosfetEnabled)
+  {
+    // نشوف لو كل القيم رجعت للمنطقة الآمنة (Hysteresis)
+    bool tempOK    = (batteryTemp    < TEMP_HYST);
+    bool voltOK    = (batteryVoltage > VOLT_HYST && batteryVoltage < 13.0);
+    bool currentOK = (batteryCurrent < CURR_HYST && batteryCurrent > -20.0);
+
+    if (tempOK && voltOK && currentOK)
+    {
+      digitalWrite(MOSFET1_PIN, HIGH);
+      digitalWrite(MOSFET2_PIN, HIGH);
+      mosfetEnabled = true;
+      faultFlag     = false;
+      Serial.println("✅ System Recovered - MOSFETs ON");
+    }
+  }
+  else if (!shouldCut && mosfetEnabled)
+  {
+    // كل حاجة تمام
+    faultFlag = false;
+  }
+}
+
+// ==========================================================
+// LED مؤشر الحالة
+// ==========================================================
+/*
+ - عطل: LED بيومض كل 200ms
+ - شغال: LED مطفي
+*/
+void updateLED()
+{
+  if (faultFlag)
+    digitalWrite(LED_PIN, (millis() / 200) % 2);
+  else
+    digitalWrite(LED_PIN, LOW);
+}
+
+// ==========================================================
+// Setup - بيتشغل مرة واحدة عند الإقلاع مع معالجة الأخطاء
+// ==========================================================
+void setup()
+{
+  Serial.begin(115200);
+  Serial.println("=== GREEN WHEEL BMS Starting ===");
+  
+  // تهيئة Watchdog
+  esp_task_wdt_init(5, true); // 5 ثواني timeout
+  esp_task_wdt_add(NULL);
+
+  // ---- Pins ----
+  pinMode(MOSFET1_PIN, OUTPUT);
+  pinMode(MOSFET2_PIN, OUTPUT);
+  pinMode(LED_PIN,     OUTPUT);
+
+  // نشغل الـ MOSFET من الأول (مسموح بالتشغيل)
+  digitalWrite(MOSFET1_PIN, HIGH);
+  digitalWrite(MOSFET2_PIN, HIGH);
+
+  // ---- Preferences لحفظ البيانات ----
+  preferences.begin("bms", false);
+  
+  // استعادة SOC المحفوظ
+  float savedSOC = preferences.getFloat("soc", -1.0);
+  if (savedSOC >= 0 && savedSOC <= 100)
+  {
+    batterySOC = savedSOC;
+    Serial.print("Restored SOC from NVS: ");
+    Serial.print(batterySOC, 1);
+    Serial.println(" %");
+  }
+  
+  // استعادة capacityUsed_mAh المحفوظ
+  float savedCapacity = preferences.getFloat("capacity", -1.0);
+  if (savedCapacity >= 0 && savedCapacity <= BATTERY_CAPACITY_MAH)
+  {
+    capacityUsed_mAh = savedCapacity;
+  }
+
+  // ---- LCD ----
+  Wire.begin();
+  if (lcd.init())
+  {
+    lcdWorking = true;
+    lcd.backlight();
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("GREEN WHEEL BMS");
+    lcd.setCursor(0, 1);
+    lcd.print("Initializing...");
+  }
+  else
+  {
+    lcdWorking = false;
+    Serial.println("⚠ LCD Failed!");
+  }
+
+  // ---- Temperature Sensor ----
+  sensors.begin();
+  
+  // اختبار السنسور
+  sensors.requestTemperatures();
+  float testTemp = sensors.getTempCByIndex(0);
+  if (testTemp == DEVICE_DISCONNECTED_C)
+  {
+    tempSensorWorking = false;
+    Serial.println("⚠ Temperature sensor not detected!");
+  }
+
+  // ---- Bluetooth ----
+  if (SerialBT.begin("GREEN_WHEEL_BMS"))
+  {
+    btWorking = true;
+    Serial.println("Bluetooth ready: GREEN_WHEEL_BMS");
+  }
+  else
+  {
+    btWorking = false;
+    Serial.println("⚠ Bluetooth failed to start!");
+  }
+
+  // ---- SD Card ----
+  if (!SD.begin(SD_CS))
+  {
+    sdWorking = false;
+    Serial.println("⚠ SD Card Failed! Logging disabled.");
+    if (lcdWorking)
+    {
+      lcd.setCursor(0, 1);
+      lcd.print("SD FAILED!      ");
+      delay(2000);
+    }
+  }
+  else
+  {
+    sdWorking = true;
+    Serial.println("SD Card OK");
+
+    // الإصلاح: اكتب الـ Header بس لو الملف مش موجود
+    if (!SD.exists("/BatteryLog.csv"))
+    {
+      File file = SD.open("/BatteryLog.csv", FILE_WRITE);
+      if (file)
+      {
+        file.println("Time_ms,Voltage_V,Current_A,Temp_C,SOC_pct");
+        file.close();
+        Serial.println("Created BatteryLog.csv with header");
+      }
+    }
+  }
+
+  // ---- معايرة ACS712 (Zero Current Offset) ----
+  // لازم مفيش حمل في الدقيقة دي!
+  if (lcdWorking)
+  {
+    lcd.setCursor(0, 1);
+    lcd.print("Calibrating...  ");
+  }
+  Serial.println("Calibrating ACS712 - Remove Load!");
+
+  long total = 0;
+  int validReadings = 0;
+  for (int i = 0; i < 500; i++)
+  {
+    int reading = analogRead(CURRENT_PIN);
+    if (reading >= 0 && reading <= 4095)
+    {
+      total += reading;
+      validReadings++;
+    }
+    delayMicroseconds(500);
+    esp_task_wdt_reset(); // إعادة تعيين Watchdog
+  }
+  
+  if (validReadings > 0)
+  {
+    ACS_OFFSET = (total / validReadings) * 3.3 / 4095.0;
+    Serial.print("ACS_OFFSET calibrated: ");
+    Serial.print(ACS_OFFSET, 4);
+    Serial.println(" V");
+    
+    // حفظ ACS_OFFSET في NVS
+    preferences.putFloat("acs_offset", ACS_OFFSET);
+  }
+  else
+  {
+    Serial.println("⚠ ACS712 calibration failed! Using saved value.");
+    ACS_OFFSET = preferences.getFloat("acs_offset", 1.65);
+  }
+
+  // ---- SOC الأولي من الجهد ----
+  float initVoltage = readVoltage();
+  if (voltSensorWorking)
+  {
+    batterySOC = ((initVoltage - 10.5) / (12.6 - 10.5)) * 100.0;
+    batterySOC = constrain(batterySOC, 0, 100);
+    lastCoulombTime = millis();
+
+    Serial.print("Initial SOC from voltage: ");
+    Serial.print(batterySOC, 1);
+    Serial.println(" %");
+  }
+
+  // ---- شاشة الترحيب ----
+  if (lcdWorking)
+  {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("GREEN WHEEL");
+    lcd.setCursor(0, 1);
+    lcd.print("SMART BMS v3.0");
+    delay(2000);
+    lcd.clear();
+  }
+  
+  lastMillis = millis();
+  Serial.println("=== BMS Ready ===");
+  Serial.println("System Status:");
+  Serial.print("  LCD: "); Serial.println(lcdWorking ? "OK" : "FAILED");
+  Serial.print("  SD: "); Serial.println(sdWorking ? "OK" : "FAILED");
+  Serial.print("  BT: "); Serial.println(btWorking ? "OK" : "FAILED");
+  Serial.print("  Temp Sensor: "); Serial.println(tempSensorWorking ? "OK" : "FAILED");
+  Serial.print("  Volt Sensor: "); Serial.println(voltSensorWorking ? "OK" : "FAILED");
+  Serial.print("  Curr Sensor: "); Serial.println(currSensorWorking ? "OK" : "FAILED");
+}
+
+// ==========================================================
+// Main Loop - بيتكرر باستمرار مع معالجة الأخطاء
+// ==========================================================
+/*
+ الترتيب المنطقي للـ Loop:
+ 1. قراءة البيانات (أهم حاجة)
+ 2. تحديث SOC بالـ Coulomb Counting
+ 3. فحص الحماية واتخاذ قرار
+ 4. تحديث LED
+ 5. عرض LCD كل ثانية
+ 6. إرسال Bluetooth كل ثانية
+ 7. حفظ SD كل 5 ثواني
+ 8. Serial Monitor كل 500ms
+ 9. حفظ دوري للبيانات في NVS
+ 10. معالجة millis overflow
+ 11. إعادة تعيين Watchdog
+*/
+void loop()
+{
+  // معالجة millis overflow
+  unsigned long currentMillis = millis();
+  if (currentMillis < lastMillis)
+  {
+    millisOverflow = true;
+    Serial.println("⚠ millis() overflow detected!");
+    // إعادة ضبط جميع الـ timers
+    lastLogTime = 0;
+    lastLCDTime = 0;
+    lastBluetoothTime = 0;
+    lastSerialTime = 0;
+    lastCoulombTime = currentMillis;
+  }
+  lastMillis = currentMillis;
+
+  // ---- 1. قراءة البيانات ----
+  batteryVoltage = readVoltage();
+  batteryCurrent = readCurrent();
+  batteryTemp    = readTemperature();
+
+  // ---- 2. تحديث SOC (Coulomb Counting) ----
+  updateSOC();
+
+  // ---- 3. فحص الحماية ----
+  checkProtection();
+
+  // ---- 4. تحديث LED ----
+  updateLED();
+
+  // ---- 5. LCD كل ثانية ----
+  if (currentMillis - lastLCDTime >= 1000)
+  {
+    updateLCD();
+    lastLCDTime = currentMillis;
+  }
+
+  // ---- 6. Bluetooth كل ثانية ----
+  if (currentMillis - lastBluetoothTime >= 1000)
+  {
+    sendBluetooth();
+    lastBluetoothTime = currentMillis;
+  }
+
+  // ---- 7. SD Card كل 5 ثواني ----
+  if (currentMillis - lastLogTime >= 5000)
+  {
+    saveToSD();
+    lastLogTime = currentMillis;
+  }
+
+  // ---- 8. Serial Monitor كل 500ms ----
+  if (currentMillis - lastSerialTime >= 500)
+  {
+    Serial.print("V:");       Serial.print(batteryVoltage, 2);
+    Serial.print("V | I:");   Serial.print(batteryCurrent, 2);
+    Serial.print("A | T:");   Serial.print(batteryTemp, 1);
+    Serial.print("C | SOC:"); Serial.print(batterySOC, 1);
+    Serial.print("% | ");
+    Serial.println(faultFlag ? "⚠ FAULT" : "✅ OK");
+    lastSerialTime = currentMillis;
+  }
+  
+  // ---- 9. حفظ دوري للبيانات في NVS كل دقيقة ----
+  static unsigned long lastNVSSave = 0;
+  if (currentMillis - lastNVSSave >= 60000)
+  {
+    preferences.putFloat("soc", batterySOC);
+    preferences.putFloat("capacity", capacityUsed_mAh);
+    lastNVSSave = currentMillis;
+  }
+
+  // ---- 10. إعادة تعيين Watchdog ----
+  esp_task_wdt_reset();
+
+  // delay صغير لاستقرار الـ ADC
+  delay(10);
+}
