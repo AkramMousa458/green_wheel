@@ -14,6 +14,9 @@
   "current": "CURRENT",
   "temperature": "TEMPERATURE",
   "optimal": "OPTIMAL",
+  "high": "HIGH",
+  "offline": "OFFLINE",
+  "waiting_for_connection": "Waiting for connection",
   "green_wheel": "GREEN WHEEL",
   "analytics": "Analytics",
   "dashboard": "Dashboard",
@@ -58,5 +61,13 @@
   "time_range_7d": "7D",
   "pack_voltage": "Pack Voltage",
   "discharge_current": "Discharge Current",
-  "cell_temperature": "Cell Temperature"
+  "cell_temperature": "Cell Temperature",
+  "all_clear": "All systems normal",
+  "all_clear_desc": "No active alerts from the BMS.",
+  "bms_fault_detected": "BMS Fault Detected",
+  "bms_fault_desc": "The battery management system reported a fault condition.",
+  "bms_low_soc": "Low Battery",
+  "bms_low_soc_desc": "State of charge is below 20%. Consider charging soon.",
+  "connected_to_device": "Connected to BMS",
+  "disconnect": "Disconnect"
 }

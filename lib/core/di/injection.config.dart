@@ -27,7 +27,7 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i975.BmsBluetoothRepository(),
       dispose: (i) => i.dispose(),
     );
-    gh.factory<_i188.BmsCubit>(
+    gh.lazySingleton<_i188.BmsCubit>(
       () => _i188.BmsCubit(gh<_i975.BmsBluetoothRepository>()),
     );
     return this;

@@ -14,6 +14,9 @@
   "current": "التيار",
   "temperature": "درجة الحرارة",
   "optimal": "مثالي",
+  "high": "مرتفع",
+  "offline": "غير متصل",
+  "waiting_for_connection": "في انتظار الاتصال",
   "green_wheel": "جرين ويل",
   "analytics": "التحليلات",
   "dashboard": "لوحة التحكم",
@@ -58,6 +61,14 @@
   "time_range_7d": "7ي",
   "pack_voltage": "جهد الحزمة",
   "discharge_current": "تيار التفريغ",
-  "cell_temperature": "حرارة الخلية"
+  "cell_temperature": "حرارة الخلية",
+  "all_clear": "جميع الأنظمة طبيعية",
+  "all_clear_desc": "لا توجد تنبيهات نشطة من نظام إدارة البطارية.",
+  "bms_fault_detected": "تم اكتشاف عطل في BMS",
+  "bms_fault_desc": "أبلغ نظام إدارة البطارية عن حالة عطل.",
+  "bms_low_soc": "بطارية منخفضة",
+  "bms_low_soc_desc": "مستوى الشحن أقل من 20%. يُنصح بالشحن قريباً.",
+  "connected_to_device": "متصل بـ BMS",
+  "disconnect": "قطع الاتصال"
 }
 

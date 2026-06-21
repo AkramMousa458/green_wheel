@@ -27,8 +27,8 @@ abstract class AppRouter {
         builder: (context, state) => const BaseScreen(),
       ),
       ShellRoute(
-        builder: (context, state, child) => BlocProvider(
-          create: (_) => locator<BmsCubit>(),
+        builder: (context, state, child) => BlocProvider.value(
+          value: locator<BmsCubit>(),
           child: child,
         ),
         routes: [

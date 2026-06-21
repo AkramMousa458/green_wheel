@@ -6,11 +6,33 @@ import 'package:flutter_translate/flutter_translate.dart';
 import 'package:green_wheel/core/utils/theme_utils.dart';
 
 class StatusCard extends StatelessWidget {
-  const StatusCard({super.key});
+  final bool connected;
+  final bool hasFault;
+
+  const StatusCard({
+    super.key,
+    this.connected = false,
+    this.hasFault = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isDark = ThemeUtils.isDark(context);
+    final statusColor = !connected
+        ? AppColors.grey
+        : hasFault
+            ? AppColors.error
+            : AppColors.primary;
+    final statusIcon = !connected
+        ? Icons.bluetooth_disabled_rounded
+        : hasFault
+            ? Icons.warning_amber_rounded
+            : Icons.gpp_good_outlined;
+    final statusLabel = !connected
+        ? translate('offline').toUpperCase()
+        : hasFault
+            ? translate('critical').toUpperCase()
+            : translate('status_safe').toUpperCase();
 
     return Container(
       padding: EdgeInsets.symmetric(vertical: 16.h),
@@ -18,8 +40,8 @@ class StatusCard extends StatelessWidget {
         color: isDark ? AppColors.darkCard : AppColors.lightCard,
         borderRadius: BorderRadius.circular(12.r),
         border: Border.all(
-          color: isDark 
-              ? AppColors.primary.withValues(alpha: 0.3)
+          color: isDark
+              ? statusColor.withValues(alpha: 0.3)
               : AppColors.lightBorder,
           width: 1.5,
         ),
@@ -28,15 +50,15 @@ class StatusCard extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.gpp_good_outlined,
-            color: AppColors.primary,
+            statusIcon,
+            color: statusColor,
             size: 20.sp,
           ),
           SizedBox(width: 8.w),
           Text(
-            translate('status_safe').toUpperCase(),
+            statusLabel,
             style: TextStyle(
-              color: AppColors.primary,
+              color: statusColor,
               fontSize: 14.sp,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.2,

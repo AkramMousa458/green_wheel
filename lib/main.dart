@@ -6,6 +6,7 @@ import 'package:green_wheel/core/theme/theme_cubit.dart';
 import 'package:green_wheel/core/utils/bloc_observer.dart';
 import 'package:green_wheel/core/utils/local_storage.dart';
 import 'package:green_wheel/core/utils/service_locator.dart';
+import 'package:green_wheel/features/bms/cubit/bms_cubit.dart';
 import 'package:green_wheel/my_app.dart';
 import 'package:logger/logger.dart';
 
@@ -58,6 +59,9 @@ Future<void> main() async {
                 localStorage: localStorage,
                 initialLocale: initialLocale,
               ),
+            ),
+            BlocProvider(
+              create: (_) => locator<BmsCubit>(),
             ),
           ],
           child: MyApp(localStorage: localStorage),

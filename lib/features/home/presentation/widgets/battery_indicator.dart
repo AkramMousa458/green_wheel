@@ -7,10 +7,12 @@ import 'package:green_wheel/core/utils/theme_utils.dart';
 
 class BatteryIndicator extends StatelessWidget {
   final double percentage;
+  final bool showPlaceholder;
 
   const BatteryIndicator({
     super.key,
     required this.percentage,
+    this.showPlaceholder = false,
   });
 
   @override
@@ -45,16 +47,18 @@ class BatteryIndicator extends StatelessWidget {
               strokeCap: StrokeCap.round,
             ),
             CircularProgressIndicator(
-              value: percentage / 100,
+              value: showPlaceholder ? 0 : percentage / 100,
               strokeWidth: 16.w,
-              color: AppColors.primary,
+              color: showPlaceholder
+                  ? (isDark ? AppColors.darkInputFill : AppColors.lightBorder)
+                  : AppColors.primary,
               strokeCap: StrokeCap.round,
             ),
             Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  '${percentage.toInt()}%',
+                  showPlaceholder ? '--' : '${percentage.toInt()}%',
                   style: TextStyle(
                     color: isDark ? AppColors.white : AppColors.lightTextPrimary,
                     fontSize: 48.sp,

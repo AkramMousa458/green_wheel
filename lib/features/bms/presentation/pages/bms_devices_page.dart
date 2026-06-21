@@ -5,10 +5,10 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:green_wheel/core/utils/app_colors.dart';
 import 'package:green_wheel/core/utils/theme_utils.dart';
+import 'package:green_wheel/features/base/presentation/screens/base_screen.dart';
 import 'package:green_wheel/features/bms/cubit/bms_cubit.dart';
 import 'package:green_wheel/features/bms/cubit/bms_state.dart';
 import 'package:green_wheel/features/bms/data/repositories/bms_bluetooth_repository.dart';
-import 'package:green_wheel/features/bms/presentation/pages/bms_dashboard_page.dart';
 
 class BmsDevicesPage extends StatefulWidget {
   const BmsDevicesPage({super.key});
@@ -39,7 +39,7 @@ class _BmsDevicesPageState extends State<BmsDevicesPage> {
       body: BlocConsumer<BmsCubit, BmsState>(
         listener: (context, state) {
           if (state.status == BmsStatus.connected) {
-            context.push(BmsDashboardPage.routeName);
+            context.go(BaseScreen.routeName);
           }
         },
         builder: (context, state) {

@@ -7,7 +7,7 @@ import 'package:green_wheel/features/bms/cubit/bms_state.dart';
 import 'package:green_wheel/features/bms/data/models/bms_reading.dart';
 import 'package:green_wheel/features/bms/data/repositories/bms_bluetooth_repository.dart';
 
-@injectable
+@lazySingleton
 class BmsCubit extends Cubit<BmsState> {
   BmsCubit(this._repository) : super(const BmsState());
 

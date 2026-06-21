@@ -5,7 +5,9 @@ import 'package:green_wheel/core/utils/app_colors.dart';
 import 'package:green_wheel/core/utils/theme_utils.dart';
 
 class AnalyticsStatusRow extends StatelessWidget {
-  const AnalyticsStatusRow({super.key});
+  final bool connected;
+
+  const AnalyticsStatusRow({super.key, this.connected = false});
 
   @override
   Widget build(BuildContext context) {
@@ -18,14 +20,18 @@ class AnalyticsStatusRow extends StatelessWidget {
       runSpacing: 8.h,
       children: [
         _StatusChip(
-          dotColor: AppColors.primary,
-          label: translate('system_online'),
+          dotColor: connected ? AppColors.primary : AppColors.grey,
+          label: connected
+              ? translate('system_online')
+              : translate('offline'),
           textColor: mutedColor,
-          glowDot: true,
+          glowDot: connected,
         ),
         _StatusChip(
-          dotColor: mutedColor,
-          label: translate('recording_data'),
+          dotColor: connected ? AppColors.primary : mutedColor,
+          label: connected
+              ? translate('recording_data')
+              : translate('waiting_for_connection'),
           textColor: mutedColor,
         ),
       ],
