@@ -18,16 +18,21 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 
-// flutter_bluetooth_serial 0.4.0 predates AGP 8 namespace requirement.
+// Legacy plugins (e.g. flutter_bluetooth_serial 0.4.0) ship compileSdk 30 and
+// no namespace. Re-apply in afterEvaluate so their build.gradle cannot overwrite
+// us, but only raise SDK — never downgrade plugins that already target newer APIs.
 subprojects {
-    pluginManager.withPlugin("com.android.library") {
-        extensions.configure<LibraryExtension>("android") {
+    afterEvaluate {
+        extensions.findByType(LibraryExtension::class.java)?.apply {
             if (namespace.isNullOrBlank()) {
                 namespace = project.group.toString().ifBlank {
                     "io.github.edufolly.flutterbluetoothserial"
                 }
             }
-            compileSdk = 34
+            val minLegacyCompileSdk = 34
+            if (compileSdk == null || compileSdk!! < minLegacyCompileSdk) {
+                compileSdk = minLegacyCompileSdk
+            }
         }
     }
 }

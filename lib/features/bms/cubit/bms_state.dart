@@ -40,6 +40,7 @@ class BmsState extends Equatable {
     String? errorMessage,
     bool clearError = false,
     bool clearConnectedDevice = false,
+    bool clearLatestReading = false,
   }) {
     return BmsState(
       status: status ?? this.status,
@@ -47,7 +48,8 @@ class BmsState extends Equatable {
       bondedDevices: bondedDevices ?? this.bondedDevices,
       connectedDevice:
           clearConnectedDevice ? null : connectedDevice ?? this.connectedDevice,
-      latestReading: latestReading ?? this.latestReading,
+      latestReading:
+          clearLatestReading ? null : latestReading ?? this.latestReading,
       history: history ?? this.history,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
     );

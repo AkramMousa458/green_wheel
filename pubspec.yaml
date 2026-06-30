@@ -16,7 +16,8 @@ dependencies:
     sdk: flutter
   flutter_animate: ^4.5.2
   flutter_bloc: ^9.1.1
-  flutter_bluetooth_serial: ^0.4.0
+  flutter_bluetooth_serial:
+    path: packages/flutter_bluetooth_serial
   fl_chart: ^0.69.2
   flutter_localizations:
     sdk: flutter

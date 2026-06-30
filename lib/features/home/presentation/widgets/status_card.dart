@@ -8,11 +8,13 @@ import 'package:green_wheel/core/utils/theme_utils.dart';
 class StatusCard extends StatelessWidget {
   final bool connected;
   final bool hasFault;
+  final bool waitingForData;
 
   const StatusCard({
     super.key,
     this.connected = false,
     this.hasFault = false,
+    this.waitingForData = false,
   });
 
   @override
@@ -22,17 +24,23 @@ class StatusCard extends StatelessWidget {
         ? AppColors.grey
         : hasFault
             ? AppColors.error
-            : AppColors.primary;
+            : waitingForData
+                ? AppColors.warning500
+                : AppColors.primary;
     final statusIcon = !connected
         ? Icons.bluetooth_disabled_rounded
         : hasFault
             ? Icons.warning_amber_rounded
-            : Icons.gpp_good_outlined;
+            : waitingForData
+                ? Icons.bluetooth_searching_rounded
+                : Icons.gpp_good_outlined;
     final statusLabel = !connected
         ? translate('offline').toUpperCase()
         : hasFault
             ? translate('critical').toUpperCase()
-            : translate('status_safe').toUpperCase();
+            : waitingForData
+                ? translate('waiting_for_connection').toUpperCase()
+                : translate('status_safe').toUpperCase();
 
     return Container(
       padding: EdgeInsets.symmetric(vertical: 16.h),

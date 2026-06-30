@@ -36,6 +36,7 @@ class HomeScreenBody extends StatelessWidget {
               StatusCard(
                 connected: connected,
                 hasFault: reading?.fault ?? false,
+                waitingForData: connected && reading == null,
               ),
               SizedBox(height: 40.h),
               BatteryIndicator(

@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
@@ -8,6 +10,7 @@ import 'package:green_wheel/core/utils/theme_utils.dart';
 import 'package:green_wheel/features/base/presentation/screens/base_screen.dart';
 import 'package:green_wheel/features/bms/cubit/bms_cubit.dart';
 import 'package:green_wheel/features/bms/cubit/bms_state.dart';
+import 'package:green_wheel/features/bms/presentation/utils/bms_permissions.dart';
 import 'package:green_wheel/features/bms/data/repositories/bms_bluetooth_repository.dart';
 
 class BmsDevicesPage extends StatefulWidget {
@@ -23,7 +26,18 @@ class _BmsDevicesPageState extends State<BmsDevicesPage> {
   @override
   void initState() {
     super.initState();
-    context.read<BmsCubit>().startScan();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startScan());
+  }
+
+  Future<void> _startScan() async {
+    final granted = await ensureBmsPermissions();
+    if (!mounted) return;
+
+    if (granted) {
+      await context.read<BmsCubit>().startScan();
+    } else {
+      await showBmsPermissionDialog(context);
+    }
   }
 
   @override
@@ -38,7 +52,7 @@ class _BmsDevicesPageState extends State<BmsDevicesPage> {
       ),
       body: BlocConsumer<BmsCubit, BmsState>(
         listener: (context, state) {
-          if (state.status == BmsStatus.connected) {
+          if (state.status == BmsStatus.connected && state.latestReading != null) {
             context.go(BaseScreen.routeName);
           }
         },
@@ -47,7 +61,7 @@ class _BmsDevicesPageState extends State<BmsDevicesPage> {
 
           return RefreshIndicator(
             color: AppColors.primary,
-            onRefresh: () => context.read<BmsCubit>().startScan(),
+            onRefresh: () => _startScan(),
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: EdgeInsets.all(20.w),
@@ -64,7 +78,8 @@ class _BmsDevicesPageState extends State<BmsDevicesPage> {
                     backgroundColor: AppColors.darkInputFill,
                   ),
                 if (state.status == BmsStatus.connecting) SizedBox(height: 8.h),
-                if (state.status == BmsStatus.error && state.errorMessage != null)
+                if (state.status == BmsStatus.error &&
+                    state.errorMessage != null)
                   _ErrorBanner(message: state.errorMessage!),
                 if (state.status == BmsStatus.error) SizedBox(height: 12.h),
                 Text(
@@ -113,8 +128,15 @@ class _BmsDevicesPageState extends State<BmsDevicesPage> {
                       child: _DeviceTile(
                         device: device,
                         isConnecting: state.status == BmsStatus.connecting,
-                        onConnect: () =>
-                            context.read<BmsCubit>().connectToDevice(device),
+                        onConnect: () async {
+                          final granted = await ensureBmsPermissions();
+                          if (!context.mounted) return;
+                          if (!granted) {
+                            await showBmsPermissionDialog(context);
+                            return;
+                          }
+                          await context.read<BmsCubit>().connectToDevice(device);
+                        },
                       ),
                     ),
                   ),
@@ -174,8 +196,11 @@ class _DeviceTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.battery_charging_full_rounded,
-              color: AppColors.primary, size: 28.sp),
+          Icon(
+            Icons.battery_charging_full_rounded,
+            color: AppColors.primary,
+            size: 28.sp,
+          ),
           SizedBox(width: 12.w),
           Expanded(
             child: Column(
@@ -184,7 +209,9 @@ class _DeviceTile extends StatelessWidget {
                 Text(
                   device.name ?? BmsBluetoothRepository.targetDeviceName,
                   style: TextStyle(
-                    color: isDark ? AppColors.white : AppColors.lightTextPrimary,
+                    color: isDark
+                        ? AppColors.white
+                        : AppColors.lightTextPrimary,
                     fontSize: 16.sp,
                     fontWeight: FontWeight.bold,
                   ),
@@ -223,6 +250,7 @@ class _ErrorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    log('error: $message');
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(12.w),

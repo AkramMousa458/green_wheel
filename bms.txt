@@ -7,7 +7,7 @@
 
  الإصلاحات المطبقة:
  1. ACS_OFFSET يتحسب تلقائياً عند الإقلاع (مش قيمة ثابتة)
- 2. إزالة delay(2) من loop القراءة → delayMicroseconds(500)
+ 2. إزالة delay(2) من loop القراءة -> delayMicroseconds(500)
  3. SOC بيستخدم Coulomb Counting + جهد معاً
  4. SD Header يتكتب مرة واحدة بس لو الملف مش موجود
  5. Bluetooth check قبل الإرسال
@@ -299,14 +299,25 @@ float readCurrent()
 float readTemperature()
 {
   sensors.requestTemperatures();
+  delay(50);
+
   float temp = sensors.getTempCByIndex(0);
 
-  // لو السنسور مش موصل بيرجع -127
-  if (temp == DEVICE_DISCONNECTED_C)
+  // حماية من قراءات الخطأ
+  if (temp == DEVICE_DISCONNECTED_C || temp == -127.0 || temp == 85.0 || temp < -20 || temp > 100)
   {
-    Serial.println("⚠ Temperature sensor disconnected!");
-    return 0.0;
+    tempSensorWorking=false;
+
+    lcd.setCursor(0,1);
+    lcd.print("Temp SensorErr");
+
+    Serial.println("Temperature Sensor Error");
+
+    // آخر قيمة افتراضية بدلا من صفر
+    return batteryTemp >0 ? batteryTemp : 25.0;
   }
+
+  tempSensorWorking=true;
   return temp;
 }
 
@@ -373,61 +384,21 @@ void updateSOC()
 */
 void updateLCD()
 {
-  if (!lcdWorking)
-  {
-    // محاولة إعادة الاتصال بالـ LCD
-    if (millis() - lastErrorTime > 5000) // كل 5 ثواني
-    {
-      lcdRetryCount++;
-      if (lcdRetryCount < 3)
-      {
-        Serial.println("🔄 Attempting LCD reconnection...");
-        Wire.begin();
-        if (lcd.init())
-        {
-          lcdWorking = true;
-          lcdRetryCount = 0;
-          Serial.println("✅ LCD reconnected!");
-          lcd.backlight();
-          lcd.clear();
-        }
-      }
-      lastErrorTime = millis();
-    }
-    return;
-  }
-  
-  try
-  {
-    // السطر الأول: الجهد والتيار
-    lcd.setCursor(0, 0);
-    lcd.print("V:");
-    lcd.print(batteryVoltage, 1);
-    lcd.print("V I:");
-    lcd.print(batteryCurrent, 1);
-    lcd.print("A  "); // مسافات زيادة تمسح أرقام قديمة
+  if (!lcdWorking) return;
 
-    // السطر التاني: الحرارة ونسبة الشحن
-    lcd.setCursor(0, 1);
-    lcd.print("T:");
-    lcd.print(batteryTemp, 1);
-    lcd.print("C ");
-    lcd.print((int)batterySOC);
-    lcd.print("%   ");
+  lcd.setCursor(0,0);
+  lcd.print("V:");
+  lcd.print(batteryVoltage,1);
+  lcd.print(" I:");
+  lcd.print(batteryCurrent,1);
+  lcd.print("   ");
 
-    // لو في عطل نضيف مؤشر
-    if (faultFlag)
-    {
-      lcd.setCursor(14, 1);
-      lcd.print("!!");
-    }
-  }
-  catch (...)
-  {
-    lcdWorking = false;
-    Serial.println("⚠ LCD communication failed!");
-    lastErrorTime = millis();
-  }
+  lcd.setCursor(0,1);
+  lcd.print("T:");
+  lcd.print(batteryTemp,1);
+  lcd.print(" ");
+  lcd.print((int)batterySOC);
+  lcd.print("%   ");
 }
 
 // ==========================================================
@@ -517,45 +488,16 @@ void saveFault(String fault)
 */
 void sendBluetooth()
 {
-  if (!btWorking)
-  {
-    // محاولة إعادة تشغيل Bluetooth
-    if (millis() - lastErrorTime > 30000) // كل 30 ثانية
-    {
-      btRetryCount++;
-      if (btRetryCount < 3)
-      {
-        Serial.println("🔄 Attempting Bluetooth restart...");
-        SerialBT.end();
-        delay(1000);
-        if (SerialBT.begin("GREEN_WHEEL_BMS"))
-        {
-          btWorking = true;
-          btRetryCount = 0;
-          Serial.println("✅ Bluetooth restarted!");
-        }
-      }
-      lastErrorTime = millis();
-    }
-    return;
-  }
-  
-  if (!SerialBT.hasClient())
-    return; // مفيش حد متصل → مانبعتش
+  if(!btWorking) return;
 
-  String data = "";
-  data += "V:"   + String(batteryVoltage, 2);
-  data += ",I:"  + String(batteryCurrent, 2);
-  data += ",T:"  + String(batteryTemp,    2);
-  data += ",SOC:"+ String(batterySOC,     0);
-  data += ",F:"  + String(faultFlag ? 1 : 0); // مؤشر العطل
+  String data="";
+  data += "V:" + String(batteryVoltage,2);
+  data += ",I:" + String(batteryCurrent,2);
+  data += ",T:" + String(batteryTemp,1);
+  data += ",SOC:" + String(batterySOC,0);
+  data += ",F:" + String(faultFlag ? 1 : 0);
 
-  if (!SerialBT.println(data))
-  {
-    btWorking = false;
-    Serial.println("⚠ Bluetooth send failed!");
-    lastErrorTime = millis();
-  }
+  SerialBT.println(data);
 }
 
 // ==========================================================
@@ -681,11 +623,11 @@ void updateLED()
 void setup()
 {
   Serial.begin(115200);
-  Serial.println("=== GREEN WHEEL BMS Starting ===");
+  Serial.println("=== SMART BMS Starting ===");
   
   // تهيئة Watchdog
-  esp_task_wdt_init(5, true); // 5 ثواني timeout
-  esp_task_wdt_add(NULL);
+  // esp_task_wdt_init disabled for ESP32 Core 3.x
+  // esp_task_wdt_add(NULL);
 
   // ---- Pins ----
   pinMode(MOSFET1_PIN, OUTPUT);
@@ -717,25 +659,33 @@ void setup()
   }
 
   // ---- LCD ----
-  Wire.begin();
-  if (lcd.init())
-  {
-    lcdWorking = true;
-    lcd.backlight();
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("GREEN WHEEL BMS");
-    lcd.setCursor(0, 1);
-    lcd.print("Initializing...");
-  }
-  else
-  {
-    lcdWorking = false;
-    Serial.println("⚠ LCD Failed!");
-  }
+  Wire.begin(32, 22);
+analogReadResolution(12);
+analogSetPinAttenuation(VOLTAGE_PIN, ADC_11db);
+analogSetPinAttenuation(CURRENT_PIN, ADC_11db);
+
+lcd.init();
+lcdWorking = true;
+lcd.backlight();
+lcd.clear();
+
+lcd.setCursor(2, 0);
+lcd.print("Hello Driver");
+
+lcd.setCursor(0, 1);
+lcd.print("SMART BMS");
+
+delay(3000);
+
+lcd.clear();
+lcd.setCursor(0, 0);
+lcd.print("Initializing...");
+
 
   // ---- Temperature Sensor ----
   sensors.begin();
+  sensors.setWaitForConversion(true);
+  sensors.setResolution(12);
   
   // اختبار السنسور
   sensors.requestTemperatures();
@@ -747,10 +697,11 @@ void setup()
   }
 
   // ---- Bluetooth ----
-  if (SerialBT.begin("GREEN_WHEEL_BMS"))
+  if (SerialBT.begin("Green Wheel BMS"))
   {
     btWorking = true;
-    Serial.println("Bluetooth ready: GREEN_WHEEL_BMS");
+    SerialBT.enableSSP();
+  Serial.println("Bluetooth ready: Green Wheel BMS");
   }
   else
   {
@@ -808,7 +759,7 @@ void setup()
       validReadings++;
     }
     delayMicroseconds(500);
-    esp_task_wdt_reset(); // إعادة تعيين Watchdog
+    // esp_task_wdt_reset(); // إعادة تعيين Watchdog
   }
   
   if (validReadings > 0)
@@ -897,10 +848,23 @@ void loop()
   }
   lastMillis = currentMillis;
 
-  // ---- 1. قراءة البيانات ----
-  batteryVoltage = readVoltage();
-  batteryCurrent = readCurrent();
-  batteryTemp    = readTemperature();
+  // ---- 1. تحديث القراءات الذكية ----
+  static unsigned long lastSensorUpdate=0;
+
+  if(currentMillis-lastSensorUpdate>=1000 || lastSensorUpdate==0)
+  {
+    batteryVoltage = readVoltage();
+    batteryCurrent = readCurrent();
+
+    static unsigned long lastTempUpdate=0;
+    if(currentMillis-lastTempUpdate>=30000 || lastTempUpdate==0){
+      batteryTemp = readTemperature();
+      lastTempUpdate=currentMillis;
+    }
+
+    Serial.println("Sensors Updated");
+    lastSensorUpdate=currentMillis;
+  }
 
   // ---- 2. تحديث SOC (Coulomb Counting) ----
   updateSOC();
@@ -935,12 +899,28 @@ void loop()
   // ---- 8. Serial Monitor كل 500ms ----
   if (currentMillis - lastSerialTime >= 500)
   {
-    Serial.print("V:");       Serial.print(batteryVoltage, 2);
-    Serial.print("V | I:");   Serial.print(batteryCurrent, 2);
-    Serial.print("A | T:");   Serial.print(batteryTemp, 1);
-    Serial.print("C | SOC:"); Serial.print(batterySOC, 1);
-    Serial.print("% | ");
-    Serial.println(faultFlag ? "⚠ FAULT" : "✅ OK");
+    Serial.println("========== SMART BMS ==========");
+
+    Serial.print("Voltage: ");
+    Serial.print(batteryVoltage,2);
+    Serial.println(" V");
+
+    Serial.print("Current: ");
+    Serial.print(batteryCurrent,2);
+    Serial.println(" A");
+
+    Serial.print("Temperature: ");
+    Serial.print(batteryTemp,1);
+    Serial.println(" C");
+
+    Serial.print("SOC: ");
+    Serial.print(batterySOC,1);
+    Serial.println(" %");
+
+    Serial.print("Status: ");
+    Serial.println(faultFlag ? "FAULT" : "OK");
+
+    Serial.println("===============================");
     lastSerialTime = currentMillis;
   }
   
@@ -954,7 +934,7 @@ void loop()
   }
 
   // ---- 10. إعادة تعيين Watchdog ----
-  esp_task_wdt_reset();
+  // esp_task_wdt_reset();
 
   // delay صغير لاستقرار الـ ADC
   delay(10);

@@ -66,4 +66,14 @@ class BmsReading extends Equatable {
 
   @override
   List<Object?> get props => [voltage, current, temperature, soc, fault];
+
+  Map<String, dynamic> toJson() {
+    return {
+      'voltage': voltage,
+      'current': current,
+      'temperature': temperature,
+      'soc': soc,
+      'fault': fault,
+    };
+  }
 }
