@@ -167,8 +167,7 @@ class _BmsDevicesPageState extends State<BmsDevicesPage> {
   }
 
   bool _isTargetDevice(String? name) {
-    if (name == null) return false;
-    return name.toUpperCase() == BmsBluetoothRepository.targetDeviceName;
+    return BmsBluetoothRepository.isTargetDeviceName(name);
   }
 }
 

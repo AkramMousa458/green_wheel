@@ -9,7 +9,18 @@ import 'package:green_wheel/features/bms/data/models/bms_reading.dart';
 
 @lazySingleton
 class BmsBluetoothRepository {
-  static const String targetDeviceName = 'GREEN_WHEEL_BMS';
+  static const String targetDeviceName = 'Green Wheel BMS';
+
+  /// Returns true when [name] matches the target BMS device, ignoring case and
+  /// treating spaces and underscores as equivalent separators. This keeps the
+  /// app resilient to the ESP32 advertising "Green Wheel BMS" while older
+  /// firmware/builds may have used "GREEN_WHEEL_BMS".
+  static bool isTargetDeviceName(String? name) {
+    if (name == null) return false;
+    String normalize(String value) =>
+        value.toUpperCase().replaceAll(RegExp(r'[\s_]+'), '');
+    return normalize(name) == normalize(targetDeviceName);
+  }
   static const String _logTag = '[BMS]';
   static const int _maxReconnectAttempts = 2;
   static const Duration _reconnectDelay = Duration(seconds: 5);
